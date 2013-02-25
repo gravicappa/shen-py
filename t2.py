@@ -1,12 +1,10 @@
 import imp
 import shenpy
-import runtime
-import std
+import primitives
 import list
 
 imp.reload(shenpy)
-imp.reload(runtime)
-imp.reload(std)
+imp.reload(primitives)
 imp.reload(list)
 
 shenpy.show_step = False

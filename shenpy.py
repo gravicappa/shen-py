@@ -1,15 +1,19 @@
 import sys
 import traceback
 
-type_function = object()
-type_symbol = object()
-type_cons = object()
-type_substring = object()
-type_subvector = object()
+class Type_tag:
+    pass
+
+type_function = Type_tag()
+type_symbol = Type_tag()
+type_cons = Type_tag()
+type_substring = Type_tag()
+type_subvector = Type_tag()
 
 error_handlers = []
 error_obj = None
 fns = {}
+globals = {}
 sp = -1
 stack = []
 reg = [None]
@@ -111,3 +115,20 @@ def call(proc, *args):
     save_pc = proc
     run()
     return reg[1]
+
+def issymbol(x):
+    return isinstance(x, list) and (len(x) == 1) and (x[0] == type_symbol)
+
+def iscons(x):
+    return isinstance(x, list) and (len(x) == 3) and (x[0] == type_cons)
+
+def istuple(x):
+    return isinstance(x, list) and (len(x) == 3) and (x[0] == type_tuple)
+
+def isvector(x):
+    return (isinstance(x, list) and (len(x) > 1) and isinstance(x[0], int)
+            and (x[0] > 0))
+
+def isabsvector(x):
+    return (isinstance(x, list) and (len(x) > 0) \
+            and (not isinstance(x[0], Type_tag)))

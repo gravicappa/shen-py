@@ -132,3 +132,11 @@ def isvector(x):
 def isabsvector(x):
     return (isinstance(x, list) and (len(x) > 0) \
             and (not isinstance(x[0], Type_tag)))
+
+def setval(key, x):
+    globals[key] = x
+    return x
+
+def absvector_set(v, i, x):
+    v[i] = x
+    return v

@@ -6,19 +6,20 @@ class Tag:
     def __init__(self, name='?'):
         self.name = name
     def __repr__(self):
-        return "#<shenpy.Tag {}>".format(self.name)
+        return "#<shenpy.Tag {0}>".format(self.name)
 
 type_function = Tag('func')
 type_symbol = Tag('sym')
 type_cons = Tag('cons')
 type_substring = Tag('substr')
 type_subvector = Tag('subvec')
+type_bool = Tag('bool')
 fail_obj = Tag('fail')
 
 error_handlers = []
 error_obj = None
 fns = {}
-globals = {}
+vars = {}
 sp = -1
 stack = []
 reg = [None]
@@ -28,23 +29,33 @@ nargs = 0
 show_step = False
 dump_error_file = "error.txt"
 
+try:
+    xrange
+except Exception:
+    xrange = range
+
 def stack_size(size):
     global stack, sp
     s = len(stack)
     if sp + size + 1 > s:
         stack.extend([None] * (sp + size - s + 1))
     else:
-        for i in range(sp + 1, s):
+        for i in xrange(sp + 1, s):
             stack[i] = None
+    return stack
 
 def reg_size(size):
     global reg
-    if (len(reg) < size + 1):
+    if len(reg) < size + 1:
         reg.extend([None] * (size - len(reg) + 1))
+    else:
+        for i in xrange(size + 1, len(reg)):
+            reg[i] = None
+    return reg
 
 def reg_clean(size):
     global reg
-    for i in range(size, len(reg)):
+    for i in xrange(size, len(reg)):
         reg[i] = None
 
 def run():
@@ -69,10 +80,14 @@ def run():
             #dbg_show_step("ERROR HANDLER")
             error_obj = error
             nargs = 0
-            save_pc = fns["klvm-call-error-handler"]()
+            save_pc = fns["klvm-call-error-handler"][1]()
 
 def error(str):
     raise Exception(str)
+
+def error_to_string(e):
+    traceback.print_exc()
+    return str(e)
 
 def push_error_handler(e):
     global error_handlers, sp, reg, nargs
@@ -114,24 +129,29 @@ def dbg_show_step(name='', file=sys.stdout):
         print("--<Press return to continue>--")
         sys.stdin.readline()
 
-def dbg_list(items):
-    ret = []
-    for x in reversed(items):
-        ret = [type_cons, x, ret]
-    return ret
-
-def call(proc, *args):
+def call_x(proc, *args):
     global reg, nargs, save_pc
     nargs = len(args)
+    i = 1
+    if isclosure(proc):
+        save_pc = proc[1]
+        nargs += proc[2]
+        for x in proc[3]:
+            reg[i] = x
+    else:
+        save_pc = proc
     reg_size(nargs + 1)
     reg[0] = None
-    i = 1
     for x in args:
         reg[i] = x
         i += 1
-    save_pc = proc
     run()
+    if sp >= 0:
+        error("call left sp {0} >= 0".format(sp))
     return reg[1]
+
+def call(proc, *args):
+    pass
 
 def issymbol(x):
     return isinstance(x, list) and (len(x) == 2) and (x[0] == type_symbol)
@@ -161,15 +181,17 @@ def isequal_list(x, y):
     return True
 
 def isequal(x, y):
-    return x == y \
+    return (isinstance(x, bool) and isinstance(y, bool) and x == y) \
+           or (isinstance(x, list) and isinstance(y, list) \
+               and isequal_list(x, y)) \
+           or x == y \
            or (issymbol(x) and isclosure(y) and x[1] == y[4]) \
-           or (issymbol(y) and isclosure(x) and y[1] == x[4]) \
-           or (iscons(x) and iscons(y) and isequal_list(x, y))
+           or (issymbol(y) and isclosure(x) and y[1] == x[4])
 
 def setval(key, x):
     if not issymbol(key):
-        error("The value {} is not a symbol".format(key))
-    globals[key[1]] = x
+        error("The value {0} is not a symbol".format(key))
+    vars[key[1]] = x
     return x
 
 def absvector_set(v, i, x):
@@ -177,8 +199,10 @@ def absvector_set(v, i, x):
     return v
 
 def tostring(x):
+    if isinstance(x, bool):
+        return repr(x)
     if isinstance(x, int) or isinstance(x, float):
-        return str(x)
+        return repr(x)
     if issymbol(x):
         return x[1]
     if isclosure(x):
@@ -188,9 +212,89 @@ def tostring(x):
             return "#<closure>"
     if x == fail_obj:
         return "fail!"
+    error("{0} is not an atom in Shen; str cannot convert it to a string."
+          .format(x))
     return fail_obj
 
-globals["*macros*"] = []
-fns["compile"] = lambda: None
-fns["declare"] = lambda: None
-fns["adjoin"] = lambda: None
+def read_byte(stream):
+    s = stream.read(1)
+    if len(s) == 0:
+        return -1
+    return ord(s)
+
+def write_byte(stream, byte):
+    stream.write(chr(byte))
+    return []
+
+def write_string(str, out):
+    out.write(str)
+    return []
+
+def eval_code(x):
+    loc={'ret': reg[0]}
+    #print('eval_code x:\n{0}\n'.format(x))
+    exec(x, globals(), loc)
+    #reg_size(1)
+    #reg[1] = loc['ret']
+    #return reg[0]
+    #print('eval_code ret: {0}'.format(loc['ret']))
+    return loc['ret']
+
+def defun_x(name, nargs, func):
+    reg_size(1)
+    reg[1] = fns[name] = [type_function, func, nargs, [], name]
+    return reg[0]
+
+def defun(name, nargs, func):
+    def fn(): return mkfun(fn, nargs, func)
+    return defun_x(name, nargs, fn)
+
+vars["*macros*"] = []
+defun_x("shen.process-datatype", 2, lambda: reg[0])
+defun_x("compile", 3, lambda: reg[0])
+defun_x("declare", 2, lambda: reg[0])
+defun_x("adjoin", 2, lambda: reg[0])
+defun_x("shenpy-eval", 1, lambda: eval_code(reg[1]))
+
+vars["*stoutput*"] = sys.stdout
+vars["*stinput*"] = sys.stdin
+vars["*language*"] = "python"
+vars["*implementation*"] = "python3"
+vars["*port*"] = "0.0.1"
+vars["*version*"] = "0.0.1-alpha"
+vars["*porters*"] = "Ramil Farkhshatov"
+
+def dbg_list(items):
+    ret = []
+    for x in reversed(items):
+        ret = [type_cons, x, ret]
+    return ret
+
+def dbg_pylist(x):
+    ret = []
+    while iscons(x):
+        ret.append(x[1])
+        x = x[2]
+    return ret
+
+def dbg_str_list(x):
+    s = "["
+    sep = ""
+    while iscons(x):
+        s = s + sep + dbg_str(x[1])
+        sep = " "
+        x = x[2]
+    return s + "]"
+
+def dbg_str(x):
+    if iscons(x):
+        return dbg_str_list(x)
+    else:
+        x = tostring(x)
+        if x == fail_obj:
+            return 'fail!'
+        else:
+            return x
+
+def repl():
+    call(fns["shen.shen"])

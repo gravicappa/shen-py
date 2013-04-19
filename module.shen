@@ -3,10 +3,9 @@
                   [author: "Ramil Farkshatov"]
                   [license: "Shen license"]
                   [desc: "Shen-py"]
-                  [load: "py-dump.shen"]
-                  [dump-fn: py-dump-shen]])
+                  [dump-fn: py.dump-shen]])
 
-(define py-dump-files
+(define py.dump-files
   {--> (list string)}
   -> ["core.kl"
       "declarations.kl"
@@ -23,10 +22,12 @@
       "writer.kl"
       "yacc.kl"])
 
-(define py-dump-shen
+(define py.dump-shen
   {symbol --> symbol --> string --> string --> boolean}
-  python _ Sdir Ddir -> (do (py-dump Sdir "shen-py.shen" Ddir)
-                            (py-dump-to-file (py-generate-primitives)
-                                             (cn Ddir "/primitives.py"))
-                            (map (/. X (py-dump Sdir X Ddir)) (py-dump-files))
+  python _ Sdir Ddir -> (do (backend-utils.write-file
+                             (py.generate-primitives)
+                             (cn Ddir "/primitives.py"))
+                            (py.dump Sdir "shen-py.shen" Ddir)
+                            (map (/. X (py.dump Sdir X Ddir))
+                                 (py.dump-files))
                             true))

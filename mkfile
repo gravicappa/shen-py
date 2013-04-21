@@ -46,8 +46,7 @@ $shen_dir/stamp:Q:
 $name:Q: $shen_dir/stamp $rt_src 
   { 
     echo '"""'
-    #cat LICENSE
-    echo LICENSE
+    cat LICENSE
     echo '"""'
     cat $rt_src
     if (! test -f $state_src) {
@@ -63,7 +62,11 @@ $name:Q: $shen_dir/stamp $rt_src
         {print}
         ' <$f
     }
-    if (test -f $state_src) cat $state_src
+    if (test -f $state_src) {
+      cat $state_src
+      echo 'if __name__ == "__main__":'
+      echo '    repl()'
+    }
     if not echo 'finish_dump()'
   } >$target
 
@@ -73,4 +76,4 @@ bootstrap:VQ:
   python2 -m shen
   rm -f $name
   mk
-  python2 -m shen -c 'shen.repl()'
+  python2 -m shen -c 'exit()'

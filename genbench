@@ -1,0 +1,172 @@
+#!/usr/bin/env rc
+
+nsteps=150
+{
+echo '
+import time
+
+n = 100000
+
+
+try:
+    xrange
+except Exception:
+    xrange = range
+
+reg = []
+nreg = 0
+
+for i in xrange(10000):
+    exec("def tmpfunc_{}(): return None".format(i))
+'
+
+  awk -v 'nsteps='$nsteps '
+    function pypr(indent, s) {
+      for (pypr_i = 0; pypr_i < indent; ++pypr_i)
+        printf("    ")
+      print s
+    }
+
+    function code(indent, i) {
+      pypr(indent, "nreg = " i % 3)
+      pypr(indent, "reg[nreg] += " i)
+      return "reg[nreg] += " i
+    }
+
+    function branchx(indent, s, e, f, ee) {
+      m = int((s + e) / 2)
+      if (m == s || m == e) {
+        code(indent, m)
+        if (e == ee) {
+          pypr(indent, "return None")
+        } else {
+          pypr(indent, "return lambda: " f "__(" m + 1 ")")
+        }
+      } else {
+        pypr(indent, "if state >= " m ":")
+        branchx(indent + 1, m, e, f, ee)
+        pypr(indent, "else:")
+        branchx(indent + 1, s, m, f, ee)
+      }
+    }
+
+    function branch(indent, s, e, f) {
+      branchx(indent, s, e, f, e)
+    }
+
+    BEGIN {
+      f = "func1"
+      for (i = 0; i < nsteps; ++i) {
+        print "def " f "_" i "():"
+        print "    global reg, nreg"
+        code(1, i)
+        print "    return " f "_" i + 1
+      }
+      print "def " f "_" i "():"
+      print "    return None"
+      print f " = " f "_" 0
+      print ""
+
+      f = "func2"
+      print "def " f "():"
+      for (i = 1; i < nsteps; ++i) {
+        print "    def xf_" i "():"
+        print "        global reg, nreg"
+        code(2, i)
+        print "        return xf_" i + 1
+      }
+      print "    def xf_" i "():"
+      print "        return None"
+      print "    return xf_1()"
+      print ""
+
+      f = "func3"
+      print "def " f "():"
+      print "    global reg, nreg"
+      for (i = 1; i < nsteps; ++i) {
+        print "    def xf_" i "():"
+        code(2, i)
+        print "        return xf_" i + 1
+      }
+      print "    def xf_" i "():"
+      print "        return None"
+      print "    return xf_1()"
+      print ""
+
+      f = "func4"
+      print "def " f "__(state):"
+      print "    global reg, nreg"
+      for (i = 1; i < nsteps; ++i) {
+        print "    if state == " i ":"
+        code(2, i)
+        print "        return lambda: " f "__(" i + 1 ")"
+      }
+      print "def " f "():"
+      print "    return " f "__(1)"
+      print ""
+
+      f = "func5"
+      print "def " f "__(state):"
+      print "    global reg, nreg"
+      branch(1, 1, nsteps, f)
+      print "def " f "():"
+      print "    return " f "__(1)"
+      print ""
+
+      f = "func6x"
+      print "def " f "():"
+      for (i = 1; i < nsteps; ++i) {
+        print "    def xf_" i "():"
+        print "        global reg, nreg"
+        code(2, i)
+        print "        return xf_" i + 1
+      }
+      print "    def xf_" i "():"
+      print "        return None"
+      print "    return xf_1"
+      print "func6 = func6x()"
+      print ""
+
+      f = "func7x"
+      print "def " f "():"
+      print "    global reg, nreg"
+      for (i = 1; i < nsteps; ++i) {
+        print "    def xf_" i "():"
+        code(2, i)
+        print "        return xf_" i + 1
+      }
+      print "    def xf_" i "():"
+      print "        return None"
+      print "    return xf_1"
+      print "func7 = func7x()"
+      print ""
+
+
+      print "def run(fn):"
+      print "    global reg, nreg"
+      print "    nreg = 0"
+      print "    reg = [-1] * 4"
+      print "    while fn:"
+      print "        fn = fn()"
+      print ""
+      print "def report(name, fn, n):"
+      print "    global reg, nreg"
+      print "    t = time.time()"
+      print "    for i in xrange(0, n):"
+      print "        run(fn);"
+      print "    t = time.time() - t"
+      print "    print(\"{} {} {}\".format(name, t, reg))"
+      print ""
+      print "if __name__ == \"__main__\":"
+      for (i = 1; i <= 7; ++i)
+        print "    report(\"func" i "\", func" i ", n)"
+    }' 
+}  >bench.py
+
+~ $1 -n && exit
+
+for (py in pypy python2 python3) {
+  echo $py:
+  rm -f bench.py[co] __pycache__/bench.*py[co]
+  $py -O -m bench
+}

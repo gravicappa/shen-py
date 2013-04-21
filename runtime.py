@@ -53,11 +53,6 @@ def reg_size(size):
             reg[i] = None
     return reg
 
-def reg_clean(size):
-    global reg
-    for i in xrange(size, len(reg)):
-        reg[i] = None
-
 def run():
     global save_pc, error_obj, fns, show_step, nargs, sp, stack, reg
     while save_pc:
@@ -84,6 +79,7 @@ def run():
 
 def error(str):
     raise Exception(str)
+    return fail_obj
 
 def error_to_string(e):
     traceback.print_exc()
@@ -147,7 +143,7 @@ def call_x(proc, *args):
         i += 1
     run()
     if sp >= 0:
-        error("call left sp {0} >= 0".format(sp))
+        return error("call left sp {0} >= 0".format(sp))
     return reg[1]
 
 def call(proc, *args):
@@ -190,7 +186,7 @@ def isequal(x, y):
 
 def setval(key, x):
     if not issymbol(key):
-        error("The value {0} is not a symbol".format(key))
+        return error("The value {0} is not a symbol".format(key))
     vars[key[1]] = x
     return x
 
@@ -200,7 +196,10 @@ def absvector_set(v, i, x):
 
 def tostring(x):
     if isinstance(x, bool):
-        return repr(x)
+        if x:
+            return true
+        else:
+            return false
     if isinstance(x, int) or isinstance(x, float):
         return repr(x)
     if issymbol(x):
@@ -211,32 +210,14 @@ def tostring(x):
         else:
             return "#<closure>"
     if x == fail_obj:
-        return "fail!"
-    error("{0} is not an atom in Shen; str cannot convert it to a string."
-          .format(x))
-    return fail_obj
-
-def read_byte(stream):
-    s = stream.read(1)
-    if len(s) == 0:
-        return -1
-    return ord(s)
-
-def write_byte(stream, byte):
-    stream.write(chr(byte))
-    return []
-
-def write_string(str, out):
-    out.write(str)
-    return []
+        return "..."
+    return error("str cannot convert {0} to a string." .format(x))
 
 def eval_code(x):
     loc={'ret': reg[0]}
     #print('eval_code x:\n{0}\n'.format(x))
-    exec(x, globals(), loc)
-    #reg_size(1)
-    #reg[1] = loc['ret']
-    #return reg[0]
+    code = compile(x, "<string>", "exec")
+    exec(code, globals(), loc)
     #print('eval_code ret: {0}'.format(loc['ret']))
     return loc['ret']
 
@@ -277,24 +258,56 @@ def dbg_pylist(x):
         x = x[2]
     return ret
 
-def dbg_str_list(x):
+def tostring_list(x):
     s = "["
     sep = ""
     while iscons(x):
-        s = s + sep + dbg_str(x[1])
+        s = s + sep + tostring_x(x[1])
         sep = " "
         x = x[2]
     return s + "]"
 
-def dbg_str(x):
+def tostring_x(x):
     if iscons(x):
-        return dbg_str_list(x)
+        return tostring_list(x)
     else:
         x = tostring(x)
         if x == fail_obj:
             return 'fail!'
         else:
             return x
+
+def read_byte(stream):
+    s = stream.read(1)
+    if len(s) == 0:
+        return -1
+    return ord(s)
+
+def write_byte(stream, byte):
+    stream.write(chr(byte))
+    return []
+
+def write_string(str, out):
+    out.write(str)
+    return []
+
+def open_file(name, dir):
+    modes = {"in" : "r", "out" : "w"}
+    mode = None
+    if issymbol(dir):
+        mode = modes.get(dir[1])
+    if mode:
+        return error("open: {0} unknown direction".format(tostring_x(dir)))
+    return open(name, mode)
+
+def open(type, name, dir):
+    openers = {"file" : open_file}
+    opener = None
+    if issymbol(type):
+        opener = openers.get(type[1])
+    if opener:
+        return opener(name, dir)
+    return error("open: {0} unknown type".format(type))
 
 def repl():
     call(fns["shen.shen"])

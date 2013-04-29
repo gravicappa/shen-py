@@ -14,13 +14,14 @@ def delvar(var):
 #from runtime import *
 
 dump_file = open('state.py', 'w')
-eval_code_orig = eval_code
 
-def eval_code(x):
+def eval_code_x():
     global dump_file
     if dump_file:
-        dump_file.write(x)
-    return eval_code_orig(x)
+        dump_file.write(reg[1])
+    return eval_code()
+
+defun_x("shenpy.eval", 1, eval_code_x)
 
 call = call_x
 

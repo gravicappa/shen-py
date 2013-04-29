@@ -2,7 +2,7 @@ Introduction
 ------------
 This is Python version of a [Shen language](shenlanguage.org). In current
 state it is only a showcase and side-effect of my klvm translator and
-unbearable slow. Also keep in mind that I haven't written Python before.
+unbearably slow. Also keep in mind that I haven't written Python before.
 
 Running
 -------

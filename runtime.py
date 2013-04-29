@@ -1,6 +1,7 @@
 import sys
 import io
 import traceback
+import time
 
 class Tag:
     def __init__(self, name='?'):
@@ -197,29 +198,41 @@ def absvector_set(v, i, x):
 def tostring(x):
     if isinstance(x, bool):
         if x:
-            return true
+            return "true"
         else:
-            return false
-    if isinstance(x, int) or isinstance(x, float):
+            return "false"
+    elif isinstance(x, int) or isinstance(x, float):
         return repr(x)
-    if issymbol(x):
+    elif issymbol(x):
         return x[1]
-    if isclosure(x):
+    elif isclosure(x):
         if x[4] != None:
             return x[4]
         else:
             return "#<closure>"
-    if x == fail_obj:
+    elif x == fail_obj:
         return "..."
-    return error("str cannot convert {0} to a string." .format(x))
+    else:
+        return error("str cannot convert {0} to a string." .format(x))
 
-def eval_code(x):
-    loc={'ret': reg[0]}
-    #print('eval_code x:\n{0}\n'.format(x))
-    code = compile(x, "<string>", "exec")
-    exec(code, globals(), loc)
-    #print('eval_code ret: {0}'.format(loc['ret']))
-    return loc['ret']
+def eval_code():
+    global ret
+    x = reg[1]
+
+    # Avoid leaking of defined one-shot functions
+    def filter_pred(line):
+        return not (line.startswith("global ") or line.startswith("del "))
+    y = "def toplevel_func():\n"
+    y += "  global ret, nargs, reg\n"
+    y += "\n".join(map(lambda line: "  " + line,
+                   filter(filter_pred, x.split("\n"))))
+    y += "\ntoplevel_func()\ndel toplevel_func"
+
+    #print('eval_code y:\n{0}\n'.format(y))
+    ret = reg[0]
+    exec(compile(y, "<string>", "exec"))
+    #print('eval_code ret: {0}'.format(ret))
+    return ret
 
 def defun_x(name, nargs, func):
     reg_size(1)
@@ -229,21 +242,6 @@ def defun_x(name, nargs, func):
 def defun(name, nargs, func):
     def fn(): return mkfun(fn, nargs, func)
     return defun_x(name, nargs, fn)
-
-vars["*macros*"] = []
-defun_x("shen.process-datatype", 2, lambda: reg[0])
-defun_x("compile", 3, lambda: reg[0])
-defun_x("declare", 2, lambda: reg[0])
-defun_x("adjoin", 2, lambda: reg[0])
-defun_x("shenpy-eval", 1, lambda: eval_code(reg[1]))
-
-vars["*stoutput*"] = sys.stdout
-vars["*stinput*"] = sys.stdin
-vars["*language*"] = "python"
-vars["*implementation*"] = "python3"
-vars["*port*"] = "0.0.1"
-vars["*version*"] = "0.0.1-alpha"
-vars["*porters*"] = "Ramil Farkhshatov"
 
 def dbg_list(items):
     ret = []
@@ -273,7 +271,7 @@ def tostring_x(x):
     else:
         x = tostring(x)
         if x == fail_obj:
-            return 'fail!'
+            return '...'
         else:
             return x
 
@@ -297,10 +295,11 @@ def open_file(name, dir):
     if issymbol(dir):
         mode = modes.get(dir[1])
     if mode:
-        return error("open: {0} unknown direction".format(tostring_x(dir)))
-    return open(name, mode)
+        return open(name, mode)
+    else:
+        return error("open: '{0}' unknown direction".format(tostring_x(dir)))
 
-def open(type, name, dir):
+def open_stream(type, name, dir):
     openers = {"file" : open_file}
     opener = None
     if issymbol(type):
@@ -309,5 +308,29 @@ def open(type, name, dir):
         return opener(name, dir)
     return error("open: {0} unknown type".format(type))
 
+def shenpy_load():
+    with open(reg[1], 'r') as f:
+        reg[1] = f.read()
+    return eval_code()
+
 def repl():
     call(fns["shen.shen"])
+
+vars["*macros*"] = []
+vars["*stoutput*"] = sys.stdout
+vars["*stinput*"] = sys.stdin
+vars["*language*"] = "python"
+vars["*implementation*"] = "all"
+vars["*port*"] = "0.0.1"
+vars["*version*"] = "0.0.1-alpha"
+vars["*porters*"] = "Ramil Farkhshatov"
+
+defun_x("shen.process-datatype", 2, lambda: reg[0])
+defun_x("compile", 3, lambda: reg[0])
+defun_x("declare", 2, lambda: reg[0])
+defun_x("adjoin", 2, lambda: reg[0])
+defun_x("shenpy-eval", 1, eval_code)
+defun_x("shenpy-load", 1, shenpy_load)
+
+defun("get-time", 1, lambda: time.time())
+defun("open", 3, lambda: open_stream(reg[1], reg[2], reg[3]))

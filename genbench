@@ -6,7 +6,7 @@ echo '
 import time
 
 n = 100000
-
+#n = 100
 
 try:
     xrange
@@ -17,7 +17,11 @@ reg = []
 nreg = 0
 
 for i in xrange(10000):
-    exec("def tmpfunc_{}(): return None".format(i))
+    x = "global very_long_tmpfunc_{0}\n"
+    x += "def very_long_tmpfunc_{0}(): return None\n"
+    x = x.format(i)
+    code = compile(x, "<string>", "exec")
+    exec(code, globals(), locals())
 '
 
   awk -v 'nsteps='$nsteps '
@@ -28,8 +32,8 @@ for i in xrange(10000):
     }
 
     function code(indent, i) {
-      pypr(indent, "nreg = " i % 3)
       pypr(indent, "reg[nreg] += " i)
+      pypr(indent, "nreg = " i % 3)
       return "reg[nreg] += " i
     }
 
@@ -55,43 +59,54 @@ for i in xrange(10000):
     }
 
     BEGIN {
+      f = "func0"
+      print "def " f "():"
+      print "    global reg, nreg"
+      for (i = 0; i < nsteps; ++i) {
+        code(1, i)
+      }
+      print "    return None"
+      print ""
+
       f = "func1"
       for (i = 0; i < nsteps; ++i) {
-        print "def " f "_" i "():"
+        print "def really_long_name_" f "_" i "():"
         print "    global reg, nreg"
         code(1, i)
-        print "    return " f "_" i + 1
+        print "    return really_long_name_" f "_" i + 1
       }
-      print "def " f "_" i "():"
+      print "def really_long_name_" f "_" i "():"
       print "    return None"
-      print f " = " f "_" 0
+      print f " = really_long_name_" f "_" 0
       print ""
 
       f = "func2"
       print "def " f "():"
       for (i = 1; i < nsteps; ++i) {
-        print "    def xf_" i "():"
+        print "    def really_long_name_xf_" i "():"
         print "        global reg, nreg"
         code(2, i)
-        print "        return xf_" i + 1
+        print "        return really_long_name_xf_" i + 1
       }
-      print "    def xf_" i "():"
+      print "    def really_long_name_xf_" i "():"
       print "        return None"
-      print "    return xf_1()"
+      print "    return really_long_name_xf_1()"
       print ""
 
-      f = "func3"
-      print "def " f "():"
-      print "    global reg, nreg"
-      for (i = 1; i < nsteps; ++i) {
-        print "    def xf_" i "():"
-        code(2, i)
-        print "        return xf_" i + 1
+      if (0) {
+        f = "func3"
+        print "def " f "():"
+        print "    global reg, nreg"
+        for (i = 1; i < nsteps; ++i) {
+          print "    def really_long_name_xf_" i "():"
+          code(2, i)
+          print "        return really_long_name_xf_" i + 1
+        }
+        print "    def really_long_name_xf_" i "():"
+        print "        return None"
+        print "    return really_long_name_xf_1()"
+        print ""
       }
-      print "    def xf_" i "():"
-      print "        return None"
-      print "    return xf_1()"
-      print ""
 
       f = "func4"
       print "def " f "__(state):"
@@ -116,57 +131,66 @@ for i in xrange(10000):
       f = "func6x"
       print "def " f "():"
       for (i = 1; i < nsteps; ++i) {
-        print "    def xf_" i "():"
+        print "    def really_long_name_xf_" i "():"
         print "        global reg, nreg"
         code(2, i)
-        print "        return xf_" i + 1
+        print "        return really_long_name_xf_" i + 1
       }
-      print "    def xf_" i "():"
+      print "    def really_long_name_xf_" i "():"
       print "        return None"
-      print "    return xf_1"
+      print "    return really_long_name_xf_1"
       print "func6 = func6x()"
+      print "del func6x"
       print ""
 
       f = "func7x"
       print "def " f "():"
       print "    global reg, nreg"
       for (i = 1; i < nsteps; ++i) {
-        print "    def xf_" i "():"
+        print "    def really_long_name_xf_" i "():"
         code(2, i)
-        print "        return xf_" i + 1
+        print "        return really_long_name_xf_" i + 1
       }
-      print "    def xf_" i "():"
+      print "    def really_long_name_xf_" i "():"
       print "        return None"
-      print "    return xf_1"
+      print "    return really_long_name_xf_1"
       print "func7 = func7x()"
+      print "del func7x"
       print ""
-
 
       print "def run(fn):"
       print "    global reg, nreg"
       print "    nreg = 0"
-      print "    reg = [-1] * 4"
+      print "    reg[0] = reg[1] = reg[2] = -1"
       print "    while fn:"
       print "        fn = fn()"
       print ""
       print "def report(name, fn, n):"
       print "    global reg, nreg"
-      print "    t = time.time()"
+      print "    reg = [-1] * 3"
+      print "    start_t = time.clock()"
       print "    for i in xrange(0, n):"
       print "        run(fn);"
-      print "    t = time.time() - t"
-      print "    print(\"{} {} {}\".format(name, t, reg))"
+      print "    t = time.clock() - start_t"
+      print "    print(\"  {} {} {} {}\".format(name, reg, nreg, t))"
       print ""
       print "if __name__ == \"__main__\":"
-      for (i = 1; i <= 7; ++i)
-        print "    report(\"func" i "\", func" i ", n)"
+      print "    very_long_tmpfunc_1()"
+      print "    very_long_tmpfunc_100()"
+      print "    very_long_tmpfunc_500()"
+      for (i = 0; i <= 7; ++i) {
+        j = i
+        #j = 7 - i
+        print "    try: report(\"func" j "\", func" j ", n)"
+        print "    except NameError as e: pass"
+      }
     }' 
 }  >bench.py
 
 ~ $1 -n && exit
 
-for (py in pypy python2 python3) {
-  echo $py:
+for (py in python2 python3 pypy) {
+  echo '*'$py:
   rm -f bench.py[co] __pycache__/bench.*py[co]
   $py -O -m bench
 }

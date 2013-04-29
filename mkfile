@@ -1,5 +1,6 @@
 MKSHELL = rc
 name = shen.py
+python = python2
 
 runtime_dir = runtime
 shen_dir = shenpy
@@ -70,10 +71,12 @@ $name:Q: $shen_dir/stamp $rt_src
     if not echo 'finish_dump()'
   } >$target
 
-bootstrap:VQ:
+bootstrap:VQ: $shen_dir/stamp $rt_src
   rm -f $name $state_src
   mk
-  python2 -m shen
+  echo '** Running Shen and dumping state'
+  $python -O -m shen
   rm -f $name
   mk
-  python2 -m shen -c 'exit()'
+  echo '** Compiling Shen'
+  $python -O -c 'import shen;exit()'

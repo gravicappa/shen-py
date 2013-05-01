@@ -1,8 +1,9 @@
 Introduction
 ------------
-This is Python version of a [Shen language](shenlanguage.org). In current
-state it is only a showcase and side-effect of my klvm translator and
-unbearably slow. Also keep in mind that I haven't written Python before.
+This is Python version of a [Shen language](http://shenlanguage.org). In
+current state it is only a showcase and side-effect of my [klvm
+translator](https://github.com/gravicappa/klvm) and unbearably slow. Also keep
+in mind that I haven't written Python before.
 
 Running
 -------

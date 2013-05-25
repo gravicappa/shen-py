@@ -46,7 +46,7 @@ def str_from_obj(x):
         return "[type_cons, " + str_from_obj(x[1]) + ", " \
                  + str_from_obj(x[2]) + "]"
     elif isclosure(x) and x[4] != None:
-        return "fns[' + pprint.pformat(x[4]) + ']'"
+        return "fns[" + pprint.pformat(x[4]) + "]"
     elif isabsvector(x):
         sep = ""
         ret = "["

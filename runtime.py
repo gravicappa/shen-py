@@ -1,5 +1,6 @@
 import sys
 import io
+import os
 import traceback
 import time
 
@@ -222,15 +223,18 @@ def eval_code():
     # Avoid leaking of defined one-shot functions
     def filter_pred(line):
         return not (line.startswith("global ") or line.startswith("del "))
-    y = "def toplevel_func():\n"
+    y = "global toplevel_func\n"
+    y += "def toplevel_func():\n"
     y += "  global ret, nargs, reg\n"
     y += "\n".join(map(lambda line: "  " + line,
                    filter(filter_pred, x.split("\n"))))
-    y += "\ntoplevel_func()\ndel toplevel_func"
 
     #print('eval_code y:\n{0}\n'.format(y))
     ret = reg[0]
     exec(compile(y, "<string>", "exec"))
+    global toplevel_func
+    toplevel_func()
+    del toplevel_func
     #print('eval_code ret: {0}'.format(ret))
     return ret
 
@@ -268,6 +272,8 @@ def tostring_list(x):
 def tostring_x(x):
     if iscons(x):
         return tostring_list(x)
+    elif x == []:
+        return '[]'
     else:
         x = tostring(x)
         if x == fail_obj:
@@ -295,7 +301,8 @@ def open_file(name, dir):
     if issymbol(dir):
         mode = modes.get(dir[1])
     if mode:
-        return open(name, mode)
+        path = os.path.expanduser(vars["*home-directory*"] + name)
+        return open(path, mode)
     else:
         return error("open: '{0}' unknown direction".format(tostring_x(dir)))
 
@@ -321,8 +328,7 @@ vars["*stoutput*"] = sys.stdout
 vars["*stinput*"] = sys.stdin
 vars["*language*"] = "python"
 vars["*implementation*"] = "all"
-vars["*port*"] = "0.0.1"
-vars["*version*"] = "0.0.1-alpha"
+vars["*port*"] = "0.0.2"
 vars["*porters*"] = "Ramil Farkhshatov"
 
 defun_x("shen.process-datatype", 2, lambda: reg[0])
@@ -331,6 +337,7 @@ defun_x("declare", 2, lambda: reg[0])
 defun_x("adjoin", 2, lambda: reg[0])
 defun_x("shenpy.eval", 1, eval_code)
 defun_x("shenpy.load", 1, shenpy_load)
+defun_x("shenpy.quit", 0, quit)
 
 defun("get-time", 1, lambda: time.time())
 defun("open", 3, lambda: open_stream(reg[1], reg[2], reg[3]))

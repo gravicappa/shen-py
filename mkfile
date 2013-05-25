@@ -16,8 +16,8 @@ shen_src = \
   $shen_dir/primitives.py \
   $shen_dir/backend-utils.shen.py \
   $shen_dir/reg-kl.shen.py \
-  $shen_dir/unwind.shen.py \
-  $shen_dir/kl-trans.shen.py \
+  $shen_dir/deinline-expr.shen.py \
+  $shen_dir/klvm-trans.shen.py \
   $shen_dir/py-kl.shen.py \
   $shen_dir/primitives.shen.py \
   $shen_dir/shen-py.shen.py \
@@ -34,14 +34,15 @@ shen_src = \
   $shen_dir/macros.kl.py \
   $shen_dir/types.kl.py \
   $shen_dir/t-star.kl.py \
-  $shen_dir/toplevel.kl.py
+  $shen_dir/toplevel.kl.py \
+  $shen_dir/modulesys.shen.py
 
 all:V: $name
 
 $shen_dir/stamp:Q:
   rm -f $target
   mkdir -p $shen_dir
-  shen_run.sbcl -ne ./make.shen $shen_dir
+  shen_run_sbcl -ne ./make.shen $shen_dir
   touch $target
 
 $name:Q: $shen_dir/stamp $rt_src 

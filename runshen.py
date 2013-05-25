@@ -1,0 +1,2 @@
+import shen
+shen.repl()

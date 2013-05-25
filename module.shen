@@ -28,6 +28,7 @@
                              (py.generate-primitives)
                              (cn Ddir "/primitives.py"))
                             (py.dump Sdir "shen-py.shen" Ddir)
+                            (py.dump Sdir "modulesys.shen" Ddir)
                             (map (/. X (py.dump Sdir X Ddir))
                                  (py.dump-files))
                             true))

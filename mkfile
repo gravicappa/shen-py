@@ -34,15 +34,14 @@ shen_src = \
   $shen_dir/macros.kl.py \
   $shen_dir/types.kl.py \
   $shen_dir/t-star.kl.py \
-  $shen_dir/toplevel.kl.py \
-  $shen_dir/modulesys.shen.py
+  $shen_dir/toplevel.kl.py
 
 all:V: $name
 
 $shen_dir/stamp:Q:
   rm -f $target
   mkdir -p $shen_dir
-  shen_run_sbcl -ne ./make.shen $shen_dir
+  shen_run -ne ./make.shen $shen_dir
   touch $target
 
 $name:Q: $shen_dir/stamp $rt_src 

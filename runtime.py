@@ -287,13 +287,13 @@ def read_byte(stream):
         return -1
     return ord(s)
 
-def write_byte(stream, byte):
+def write_byte(byte, stream):
     stream.write(chr(byte))
-    return []
+    return byte
 
 def write_string(str, out):
     out.write(str)
-    return []
+    return str
 
 def open_file(name, dir):
     modes = {"in" : "r", "out" : "w"}
@@ -305,15 +305,6 @@ def open_file(name, dir):
         return open(path, mode)
     else:
         return error("open: '{0}' unknown direction".format(tostring_x(dir)))
-
-def open_stream(type, name, dir):
-    openers = {"file" : open_file}
-    opener = None
-    if issymbol(type):
-        opener = openers.get(type[1])
-    if opener:
-        return opener(name, dir)
-    return error("open: {0} unknown type".format(type))
 
 def shenpy_load():
     with open(reg[1], 'r') as f:
@@ -340,4 +331,4 @@ defun_x("shenpy.load", 1, shenpy_load)
 defun_x("shenpy.quit", 0, quit)
 
 defun("get-time", 1, lambda: time.time())
-defun("open", 3, lambda: open_stream(reg[1], reg[2], reg[3]))
+defun("open", 3, lambda: open_file(reg[1], reg[2]))

@@ -9,20 +9,28 @@ Running
 -------
 Go to directory where `shen.py` is and type
 
-    python -m shen
+    python -m runshen
 
 If you imported shen from Python repl you can start Shen repl via
 
     shen.repl()
 
+or call a Shen function via
+
+    shen.call("function-name", *args)
+
 Python integration
 ------------------
-To define a Shen function from Python use shen.defun construct:
+To define a Shen function from Python use shen.proc decorator.
 
-    shen.defun("plus", 2, lambda: shen.reg[1] + shen.reg[2])
-
-where first argument is the function's name, second is the number of
-arguments, and third is a function that takes zero arguments. In that function
-passed arguments are accessed via shen.reg array.
+    # Theese code samples define `poly1` and `poly2` shen functions
+    
+    @shen.proc
+    def poly1(x, a, b):
+      return a * x + b
+    
+    @shen.proc('poly2')
+    def shenpy_poly2(x, a, b, c):
+      return a * x * x + b * x + c
 
 To load Python file from Shen use `shenpy.load` function.

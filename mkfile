@@ -1,6 +1,6 @@
 MKSHELL = rc
 name = shen.py
-python = python2
+py = python
 
 runtime_dir = runtime
 shen_dir = shenpy
@@ -18,6 +18,7 @@ shen_src = \
   $shen_dir/reg-kl.shen.py \
   $shen_dir/deinline-expr.shen.py \
   $shen_dir/klvm-trans.shen.py \
+  $shen_dir/klvm-trans-call.shen.py \
   $shen_dir/py-kl.shen.py \
   $shen_dir/primitives.shen.py \
   $shen_dir/shen-py.shen.py \
@@ -34,7 +35,8 @@ shen_src = \
   $shen_dir/macros.kl.py \
   $shen_dir/types.kl.py \
   $shen_dir/t-star.kl.py \
-  $shen_dir/toplevel.kl.py
+  $shen_dir/toplevel.kl.py \
+  $shen_dir/modulesys.shen.py
 
 all:V: $name
 
@@ -57,7 +59,7 @@ $name:Q: $shen_dir/stamp $rt_src
     for (f in $shen_src) {
       echo
       echo '## '$f
-      echo 'print("## file '^$"f^'")'
+      #echo 'print("## file '^$"f^'")'
       awk '
         /^import shen.*$/ {next}
         {print}
@@ -75,8 +77,8 @@ bootstrap:VQ: $shen_dir/stamp $rt_src
   rm -f $name $state_src
   mk
   echo '** Running Shen and dumping state'
-  $python -O -m shen
+  $py -m shen
   rm -f $name
   mk
   echo '** Compiling Shen'
-  $python -O -c 'import shen;exit()'
+  $py -c 'import shen;exit()'

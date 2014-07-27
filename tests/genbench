@@ -1,4 +1,5 @@
 #!/usr/bin/env rc
+interps=(python2 python3 pypy)
 
 nsteps=150
 {
@@ -193,7 +194,7 @@ for i in xrange(10000):
       print "    global reg, nreg"
       for (i = 1; i < nsteps; ++i) {
         code(1, i)
-        print "    yield"
+        print "    yield None"
       }
       print "def run_func8():"
       print "    init()"
@@ -230,13 +231,14 @@ def main():
 if __name__ == "__main__":
   main()
 '
-}  >bench.py
+}  >bench_exec.py
 
 ~ $1 -n && exit
 
-for (py in python2 python3 pypy) {
-  echo '*'$py:
-  rm -f bench.py[co] __pycache__/bench.*py[co]
-  for (t in `{seq 0 8})
-    $py -O -m bench $t
-}
+for (py in $interps) 
+  if (whatis $py) {
+    echo '*'$py:
+    rm -f bench_exec.py[co] __pycache__/bench_exec.*py[co]
+    for (t in `{seq 0 8})
+      $py -O -m bench_exec $t
+  }

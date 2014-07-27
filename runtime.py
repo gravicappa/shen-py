@@ -1,13 +1,9 @@
-import sys
-import io
-import os
-import traceback
-import time
-import inspect
+import sys, io, os, traceback, time, inspect
 import cPickle as pickle
 from cStringIO import StringIO 
 
 class Tag:
+    __slots__ = ['name']
     all = {}
     def __init__(self, name='???'):
         self.name = name
@@ -30,17 +26,18 @@ globvars = {}
 
 sp = 0
 reg_top = 0
-reg = [None]
+reg = []
 nargs = 0
 next = None
+ret = None
 
 start = None
 
 dbg_step = False
 dbg_output = sys.stdout
 show_step = False
-show_step_frame = True
-dump_error = True
+show_step_frame = False
+dump_error = False
 
 # Compatibility with python3
 try:
@@ -48,30 +45,29 @@ try:
 except Exception:
     xrange = range
 
-def reg_size(size):
+def reg_size(n):
     global reg, sp, reg_top
+    size = sp + n
     s = len(reg)
-    top = sp + size
-    if reg_top < top:
-        reg_top = top
-    if top > s:
-        reg.extend([None] * (top - s))
+    if size > s:
+        reg.extend([None] * (size - s))
     return reg
 
-def wipe_stack(begin):
-    global reg, sp, reg_top
-    for i in xrange(sp + begin, reg_top):
-        reg[i] = None
-    reg_top = sp + begin
+def wipe_stack(off):
+    global sp, reg_top
+    return
+    local_reg = reg
+    for i in xrange(sp + off, reg_top):
+        local_reg[i] = None
+    reg_top = sp
 
 def run():
-    global start, error_obj, fns, show_step, nargs, next, sp, reg
+    global error_obj, fns, show_step, nargs, sp, reg, start
     while start:
         try:
             pc = start
             start = None
             while pc:
-                #print(pc)
                 if show_step: dbg_show_step(pc, frame_only = show_step_frame)
                 pc = pc()
                 #print('=> pc: {}'.format(pc))
@@ -80,6 +76,9 @@ def run():
             #traceback.print_exc()
             if len(error_handlers) == 0:
                 if dump_error:
+                    with_dbg_output(lambda f:
+                                    f.write("**ERROR: {0}\n".format(error)))
+                    traceback.print_exc()
                     dbg_show_step("UNCAUGHT ERROR")
                 raise
             #dbg_show_step("ERROR HANDLER")
@@ -93,44 +92,43 @@ def paranoid_check_sp(prev):
 
 def paranoid_check_reg(sp):
     for i in reg[sp:]:
-      if i != None:
-        dbg_print('nonempty reg: {}'.format(i))
-        dbg_print('nonempty sp: {}'.format(sp))
-        dbg_print('nonempty reg_top: {}'.format(reg_top))
-        dbg_print('nonempty regs: {}'.format(reg))
-        error("call left nonempty reg")
+        if i != None:
+            dbg_print('nonempty reg: {}'.format(i))
+            dbg_print('nonempty sp: {}'.format(sp))
+            dbg_print('nonempty reg_top: {}'.format(reg_top))
+            dbg_print('nonempty regs: {}'.format(reg))
+            error("call left nonempty reg")
 
 def call_function(proc, *args):
     global reg, nargs, sp
-    i = sp
-    nargs = len(args)
+    n = len(args)
     if isclosure(proc):
-        nargs += len(proc[3])
-    reg_size(nargs + 1)
-    for x in reversed(args):
-        reg[i] = x
-        i += 1
+        n2 = len(proc[4])
+    else:
+        n2 = 0
+    reg_size(n + n2 + 1)
+    reg[sp:sp + n] = reversed(args)
+    i = sp + n
     if isclosure(proc):
-        fn = proc[1]
-        for x in reversed(proc[3]):
-            reg[i] = x
-            i += 1
+        fn = proc[2]
+        reg[i:i + n2] = proc[4]
     elif callable(proc):
         fn = proc
     else:
         error("{} is not a function".format(proc))
+    nargs = n + n2
     return fn
 
 def call_x(proc, *args):
-    global reg, nargs, start, sp
+    global reg, nargs, start, sp, ret
     prevsp = sp
     start = call_function(proc, *args)
     run()
     paranoid_check_sp(prevsp)
-    ret = reg[sp]
-    reg[sp] = None
-    paranoid_check_reg(sp)
-    return ret
+    r = ret
+    ret = None
+    #paranoid_check_reg(sp)
+    return r
 
 def error(str):
     raise Exception(str)
@@ -143,7 +141,7 @@ def error_to_string(e):
 def push_error_handler(e):
     global error_handlers, sp, reg, nargs
     #dbg_show_step("SET ERROR HANDLER")
-    error_handlers.append((sp, reg_top, nargs, next, e))
+    error_handlers.append((sp, next, e))
     #with_dbg_output(lambda out: out.write('cont: {}\n'.format(error_handlers)))
 
 def pop_error_handler():
@@ -156,12 +154,12 @@ def default_error_handler():
 
 def error_unwind_get_handler():
     global error_handlers, sp, reg_top, nargs, next
-    sp, reg_top, nargs, next, e = error_handlers.pop()
+    sp, next, e = error_handlers.pop()
     return e
 
 def call_error_handler(*args):
     global error_handlers, sp, reg_top, nargs, next, start
-    sp, _, nargs, next, e = error_handlers.pop()
+    sp, next, e = error_handlers.pop()
     #dbg_print("reg_top: {} e: {}".format(reg_top, e))
     wipe_stack(0)
     start = call_function(e, *args)
@@ -185,6 +183,7 @@ def dbg_show_step_x(name, output, frame_only):
     output.write("  nargs: {0}\n".format(nargs))
     output.write("  next: {0}\n".format(next))
     output.write("  sp: {0}\n".format(sp))
+    output.write("  ret: {0}\n".format(ret))
     output.write("  reg_top: {0}\n".format(reg_top))
     if frame_only:
         i = sp
@@ -214,24 +213,29 @@ def call(proc, *args):
     pass
 
 def intern(x):
+    global fns
     if x == "true":
         return True
     elif x == "false":
         return False
+    elif x in fns:
+        return fns[x]
     elif isinstance(x, str):
         return (type_symbol, x)
     else:
         error("intern: argument '{}' is not a string".format(x))
 
 def issymbol(x):
-    return isinstance(x, tuple) and (len(x) == 2) and (x[0] == type_symbol)
+    return isinstance(x, tuple) \
+           and (((len(x) == 2) and (x[0] == type_symbol)) \
+                or isclosure(x))
 
 def iscons(x):
     return isinstance(x, tuple) and (len(x) == 3) and (x[0] == type_cons)
 
 def isvector(x):
     return (isinstance(x, list) and (len(x) > 1)
-            and (isinstance(x[0], int) or isinstance(x[0], long))
+            and isinstance(x[0], (int, long))
             and (x[0] > 0))
 
 def isabsvector(x):
@@ -240,7 +244,7 @@ def isabsvector(x):
 
 def isclosure(x):
     return (isinstance(x, tuple) and (len(x) == 5) and x[0] == type_function \
-            and callable(x[1]))
+            and callable(x[2]))
 
 def isequal_list(x, y):
     n = len(x)
@@ -258,9 +262,9 @@ def isequal(x, y):
            or (((isinstance(x, tuple) and isinstance(y, tuple)) \
                 or (isinstance(x, list) and isinstance(y, list))) \
                and isequal_list(x, y)) \
-           or x == y \
-           or (issymbol(x) and isclosure(y) and x[1] == y[4]) \
-           or (issymbol(y) and isclosure(x) and y[1] == x[4])
+           or (x == y) \
+           or (issymbol(x) and isclosure(y) and x[1] == y[1]) \
+           or (issymbol(y) and isclosure(x) and y[1] == x[1])
 
 def setval(key, x):
     if not issymbol(key):
@@ -278,20 +282,20 @@ def tostring(x):
             return "true"
         else:
             return "false"
-    elif isinstance(x, int) or isinstance(x, float) or isinstance(x, long):
+    elif isinstance(x, (int, float, long)):
         return repr(x)
     elif issymbol(x):
         return x[1]
     elif isclosure(x):
-        if x[4] == None:
-            if x[1].__name__:
-                return "#<closure " + x[1].__name__ + "#" + str(id(x)) + ">"
+        if x[1] == None:
+            if x[2].__name__:
+                return "#<closure " + x[2].__name__ + "#" + str(id(x)) + ">"
             else:
                 return "#<closure #" + str(id(x)) + ">"
-        elif len(x[3]) == 0:
-            return x[4]
+        elif len(x[4]) == 0:
+            return x[1]
         else:
-            return "#<closure " + x[4] + "#" + str(id(x)) + ">"
+            return "#<closure " + x[1] + "#" + str(id(x)) + ">"
     elif x == fail_obj:
         return "..."
     else:
@@ -321,6 +325,7 @@ def eval_code():
 
 def proc(x = ""):
     def mk(fn, name):
+        global ret
         if name == '':
             name = fn.__name__
         args = inspect.getargspec(fn).args
@@ -330,16 +335,16 @@ def proc(x = ""):
             if r != fail_obj: return r
             r = fn(*reversed(reg[sp:sp + x_nargs]))
             return fn_return(r, next)
-        reg_size(1)
-        reg[sp] = fns[name] = (type_function, x, x_nargs, [], name)
+        x.__name__ = fn.__name__
+        ret = fns[name] = (type_function, name, x, x_nargs, [])
         return fn
     if callable(x):
         return mk(x, x.__name__)
     return lambda f: mk(f, x)
 
 def defun_x(name, nargs, func):
-    reg_size(1)
-    reg[sp] = fns[name] = (type_function, func, nargs, [], name)
+    global ret
+    ret = fns[name] = (type_function, name, func, nargs, [])
     return next
 
 def dbg_list(items):
@@ -426,8 +431,9 @@ def shenpy_eval(x):
     return eval(x)
 
 def shenpy_load():
+    global ret
     with open(reg[sp], 'r') as f:
-        reg[sp] = f.read()
+        ret = f.read()
     return eval_code()
 
 def repl():
@@ -438,7 +444,7 @@ globvars["*stoutput*"] = sys.stdout
 globvars["*stinput*"] = sys.stdin
 globvars["*language*"] = "python"
 globvars["*implementation*"] = "all"
-globvars["*port*"] = "0.1.0"
+globvars["*port*"] = "0.2.0"
 globvars["*porters*"] = "Ramil Farkhshatov"
 
 def nop():
@@ -458,21 +464,22 @@ def get_time(x):
     return time.time()
 
 def mk_closure():
-    global reg, sp, nargs, next
-    fn = reg[sp + nargs - 1]
+    global reg, sp, nargs, next, ret, sp_top
+    fn = reg[sp + nargs - 1][2]
     v = reg[sp:sp + nargs - 1]
-    wipe_stack(1)
-    reg[sp] = (type_function, fn, nargs, v, None)
+    ret = (type_function, None, fn, nargs - 1, v)
+    sp_top = sp + nargs
+    wipe_stack(0)
     return next
 
-defun_x("klvm-mk-closure", 1, mk_closure)
+defun_x("klvm.mk-closure", 1, mk_closure)
 
 def test_regs():
     global reg, sp
     reg_size(10)
     for i in xrange(11): reg[i] = i
     print("regs: {}\n".format(reg))
-    wipe_stack(5)
+    wipe_stack()
     print("regs: {}\n".format(reg))
 
 def dbg_log(fn):
@@ -505,13 +512,3 @@ def load(data):
     up = pickle.Unpickler(stream)
     up.persistent_load = pickle_load
     return up.load()
-
-def test_dump():
-    import pprint
-    x = [2, fail_obj, dbg_list(["one", 'tw"o', "thr'e", 4])]
-    s = dump(x)
-    pp = pprint.PrettyPrinter()
-    with open("toystate.py", "wt") as f:
-        f.write("data = ")
-        f.write(pp.pformat(s))
-        f.write("\n")

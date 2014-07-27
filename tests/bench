@@ -1,0 +1,14 @@
+#!/bin/sh
+interps='python2 python3 pypy'
+
+module="${1%%.py}"
+test -z "$module" && exit 1
+
+for py in $interps; do
+  if which "$py" >/dev/null 2>&1; then
+    echo "* $py":
+    rm -f "$module".py[co] __pycache__/"$module".*py[co]
+    "$py" -O -m "$module"
+    echo ""
+  fi
+done

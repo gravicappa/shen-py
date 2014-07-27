@@ -2,3 +2,4 @@ __*
 *.kl
 *.pyc
 *.pyo
+tests/*
